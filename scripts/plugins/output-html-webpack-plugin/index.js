@@ -1,8 +1,9 @@
 /**
- * OutputWebpackHtml
- * 功能：在 Webpack 成功编译和输出了文件后执行发布操作，把输出的文件关联到 html
+ * OutputHtmlWebpack
+ * 功能：模拟 HtmlWebpackPlugin 插件的功能
+ *      在 Webpack 成功编译和输出了文件后执行发布操作，把输出的文件关联到 html
  * 使用：
- *  // 在初始化 OutputWebpackHtml 时传入了一个参数，{key:value,}；
+ *  // 在初始化 OutputHtmlWebpack 时传入了一个参数，{key:value}；
     // key: 打包入口名称
     // value：
         {
@@ -45,6 +46,10 @@ class OutputHtmlWebpack {
                     const root = content.querySelector('body')
                     result[key].forEach(filename => {
                         let script = HTMLParser.parse(` <script type="text/javascript" src="${this.entryhtml[key].path}${filename}"></script>`);
+                        const arr = filename.split('.')
+                        if (arr[arr.length-1] === 'css') {
+                            script = HTMLParser.parse(` <link rel="stylesheet" type="text/css" href="${this.entryhtml[key].path}${filename}"/>`);
+                        }
                         root.appendChild(script)
                     })
                     fs.writeFileSync(

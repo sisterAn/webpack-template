@@ -3,6 +3,7 @@ const webpack = require('webpack')
 // 为模块提供中间缓存步骤，显著提高打包速度
 const HardSourceWebpackPlugin = require('hard-source-webpack-plugin')
 const HtmlWebpackPlugin = require('html-webpack-plugin');
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 // 多线程loader，用于提升构建速度
 const HappyPack = require('happypack')
 // node 提供的系统操作模块
@@ -21,6 +22,7 @@ const createHappyPlugin = (id, loaders) => new HappyPack({
   verbose: true
   // threads：代表开启几个子进程去处理这一类型的文件，默认是3个，类型必须是整数
 });
+const glob = require('glob'); // Match files
 const utils = require('../tools/utils')
 const project = utils.argv.project // 项目
 
@@ -114,20 +116,26 @@ const plugins = [
     template: './src/index.html', //本地模板文件的位置，支持加载器(如handlebars、ejs、undersore、html等)，如比如 handlebars!src/index.hbs；
     filename: './index.html', //输出文件的文件名称，默认为index.html，不配置就是该文件名；此外，还可以为输出文件指定目录位置（例如'html/index.html'）
   }),
+  // 清除原有打包文件
+  new CleanWebpackPlugin({
+    root: process.cwd(), // 根目录
+    verbose: true, // 开启在控制台输出信息
+    dry: false // 启用删除文件
+  }),
 ]
 
 module.exports = {
   // 入口文件
-  entry: { 
-    "index": ["@babel/polyfill", `./${project}/index.js`],
+  entry: 
+  { 
+    "index": `./${project}/index.js`,
   },
-  // 文件打包输出设置
-  output: { 
-    path: path.join(__dirname, '../../dist/build'),
-    filename: "[name].bundle.js",
-    chunkFilename: '[name].[chunkhash].bundle.js',
-    publicPath: '/'
-  },
+  // glob.sync('./project/**/index.js').reduce((acc, path) => {
+  //   const entry = path.replace('/index.js', '')
+  //   acc[entry] = path
+  //   console.log('-------acc: ', acc)
+  //   return acc
+  // }, {}),
   module: {
     // 项目中使用的 jquery 并没有采用模块化标准，webpack 忽略它
     // noParse: /jquery/,
@@ -149,7 +157,7 @@ module.exports = {
   },
   plugins: plugins,
   performance: {
-    //性能设置,文件打包过大时，不报错和警告，只做提示
+    // 性能设置,文件打包过大时，不报错和警告，只做提示
     hints: false
   }
 }

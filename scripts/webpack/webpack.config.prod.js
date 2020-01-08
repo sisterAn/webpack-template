@@ -6,8 +6,9 @@ const glob = require('glob'); // Match files
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 // 压缩 css
 const OptimizeCssAssetsPlugin = require('optimize-css-assets-webpack-plugin');
-// 压缩 js（多进程并行处理压缩）
-const ParallelUglifyPlugin = require('webpack-parallel-uglify-plugin');
+// 压缩 js（多进程并行处理压缩）webpack4 中使用内置的 TerserPlugin 来最小化包
+// 仅仅在 webpack3 中使用
+// const ParallelUglifyPlugin = require('webpack-parallel-uglify-plugin');
 // 将 JavaScript 或 CSS 资产添加到 html-webpack-plugin 生成的 HTML 中
 const AddAssetHtmlPlugin = require('add-asset-html-webpack-plugin')
 // 分析包内容
@@ -58,29 +59,32 @@ let plugins = [
 		// 控制插件是否可以将消息打印到控制台，默认为 true
 		canPrint: true
 	}),
-	// 使用 ParallelUglifyPlugin 并行压缩输出的 JS 代码
-	new ParallelUglifyPlugin({
-		// 传递给 UglifyJS 的参数
-		uglifyJS: {
-			// 在UglifyJs删除没有用到的代码时不输出警告
-			warnings: false,
-			compress: {
-				drop_debugger: true,
-				// 删除所有的 `console` 语句，可以兼容ie浏览器
-				drop_console: true,
-				// 内嵌定义了但是只用到一次的变量
-				collapse_vars: true,
-				// 提取出出现多次但是没有定义成变量去引用的静态值
-				reduce_vars: true,
-			},
-			output: {
-				// 最紧凑的输出
-				beautify: false,
-				// 删除所有的注释
-				comments: false
-			}
-		}
-	}),
+	// // 使用 ParallelUglifyPlugin 并行压缩输出的 JS 代码
+	// new ParallelUglifyPlugin({
+	// 	// 传递给 UglifyJS 的参数
+	// 	uglifyJS: {
+	// 		// 在UglifyJs删除没有用到的代码时不输出警告
+	// 		warnings: false,
+	// 		compress: {
+	// 			drop_debugger: true,
+	// 			// 删除所有的 `console` 语句，可以兼容ie浏览器
+	// 			drop_console: true,
+	// 			// 内嵌定义了但是只用到一次的变量
+	// 			collapse_vars: true,
+	// 			// 提取出出现多次但是没有定义成变量去引用的静态值
+	// 			reduce_vars: true,
+	// 		},
+	// 		output: {
+	// 			// 最紧凑的输出
+	// 			beautify: false,
+	// 			// 删除所有的注释
+	// 			comments: false
+	// 		}
+	// 	}
+	// }),
+	// 将根据模块的相对路径生成散列，生成一个4个字符的字符串作为模块id。
+	// 建议在生产中使用。
+	new webpack.HashedModuleIdsPlugin(),
 ]
 
 // // 引入所有的 dll 动态链接库
@@ -127,6 +131,13 @@ if (analyze) {
 
 const prodWebpackConfig = merge(common, {
 	mode: 'production',
+  // 文件打包输出设置
+  output: { 
+    path: path.resolve(__dirname, '../../dist/build'),
+    filename: "[name].[contenthash].js",
+    chunkFilename: '[name].[contenthash].bundle.js',
+    publicPath: '/'
+  },
 	module: { // 抽离 css
 		rules: utils.styleLoaders({
         sourceMap: false,
@@ -134,50 +145,51 @@ const prodWebpackConfig = merge(common, {
         publicPath: '../'
       })
 	},
-	// optimization: {
-	// 	minimize: true,
-	// 	splitChunks: { // 分块
+	optimization: {
+		minimize: true,
+		// runtimeChunk: true,
+		splitChunks: { // 分块
 
-	// 		// 默认为 async （只针对异步块进行拆分），值为 all/initial/async/function(chunk) ,值为 function 时第一个参数为遍历所有入口 chunk 时的 chunk 模块，chunk._modules 为 chunk 所有依赖的模块，
-	// 		// 通过 chunk 的名字和所有依赖模块的 resource 可以自由配置,会抽取所有满足条件 chunk 的公有模块，以及模块的所有依赖模块，包括 css
-	// 		chunks: 'all',
+			// 默认为 async （只针对异步块进行拆分），值为 all/initial/async/function(chunk) ,值为 function 时第一个参数为遍历所有入口 chunk 时的 chunk 模块，chunk._modules 为 chunk 所有依赖的模块，
+			// 通过 chunk 的名字和所有依赖模块的 resource 可以自由配置,会抽取所有满足条件 chunk 的公有模块，以及模块的所有依赖模块，包括 css
+			chunks: 'all',
 
-	// 		// minRemainingSize: 0,
-	// 		// webpack5 中引入，限制拆分后剩余的块的最小大小，避免大小为零的模块
-	// 		// 仅仅对剩余的最后一个块有效
-	// 		// 在“开发”模式下默认为0 
-	// 		// 在其他情况下，默认值为 minSize 的值
-	// 		// 因此除极少数需要深度控制的情况外，无需手动指定它
+			// minRemainingSize: 0,
+			// webpack5 中引入，限制拆分后剩余的块的最小大小，避免大小为零的模块
+			// 仅仅对剩余的最后一个块有效
+			// 在“开发”模式下默认为0 
+			// 在其他情况下，默认值为 minSize 的值
+			// 因此除极少数需要深度控制的情况外，无需手动指定它
 
-	// 		// 旨在与HTTP/2和长期缓存一起使用 
-	// 		// 它增加了请求数量以实现更好的缓存
-	// 		// 它还可以用于减小文件大小，以加快重建速度。
-	// 		minSize: 30000, //表示在压缩前的最小模块大小,默认值是30kb
+			// 旨在与HTTP/2和长期缓存一起使用 
+			// 它增加了请求数量以实现更好的缓存
+			// 它还可以用于减小文件大小，以加快重建速度。
+			minSize: 30000, // 表示在压缩前的最小模块大小,默认值是30kb
 
-	// 		minChunks: 1, // 表示被引用次数，默认为1；
-	// 		maxAsyncRequests: 6, // 按需加载时的最大并行请求数
-	// 		maxInitialRequests: 4, // 入口的最大并行请求数
-	// 		automaticNameDelimiter: '~', // 名称分隔符，默认是~
-	// 		name: true, // 打包后的名称，默认是 chunk 的名字通过分隔符（默认是～）分隔
-	// 		cacheGroups: {
-	// 			// 设置缓存组用来抽取满足不同规则的 chunk ,下面以生成 common 为例
-	// 			common: {
-	// 				name: 'common', // 抽取的 chunk 的名字
-	// 				chunks: 'all',
-	// 				chunks(chunk) {
-	// 					// 同外层的参数配置，覆盖外层的 chunks ，以 chunk 为维度进行抽取
-	// 				},
-	// 				test(module, chunks) {
-	// 					// 可以为字符串，正则表达式，函数，以 module 为维度进行抽取，只要是满足条件的 module 都会被抽取到该 common 的 chunk 中，为函数时第一个参数是遍历到的每一个模块，第二个参数是每一个引用到该模块的 chunks 数组。
-	// 				},
-	// 				priority: 10, // 优先级，一个 chunk 很可能满足多个缓存组，会被抽取到优先级高的缓存组中
-	// 				minChunks: 2, // 最少被几个 chunk 引用
-	// 				reuseExistingChunk: true, // 如果该 chunk 中引用了已经被抽取的 chunk，直接引用该 chunk，不会重复打包代码
-	// 				enforce: true, // 如果 cacheGroup 中没有设置 minSize ，则据此判断是否使用上层的 minSize ，true：则使用0，false：使用上层 minSize
-	// 			},
-	// 		},
-	// 	},
-	// },
+			minChunks: 1, // 表示被引用次数，默认为1；
+			maxAsyncRequests: 6, // 按需加载时的最大并行请求数
+			maxInitialRequests: 4, // 入口的最大并行请求数
+			automaticNameDelimiter: '~', // 名称分隔符，默认是~
+			name: true, // 打包后的名称，默认是 chunk 的名字通过分隔符（默认是～）分隔
+			cacheGroups: {
+				// 设置缓存组用来抽取满足不同规则的 chunk ,下面以生成 common 为例
+				common: {
+					name: 'common', // 抽取的 chunk 的名字
+					chunks: 'all',
+					chunks(chunk) {
+						// 同外层的参数配置，覆盖外层的 chunks ，以 chunk 为维度进行抽取
+					},
+					test(module, chunks) {
+						// 可以为字符串，正则表达式，函数，以 module 为维度进行抽取，只要是满足条件的 module 都会被抽取到该 common 的 chunk 中，为函数时第一个参数是遍历到的每一个模块，第二个参数是每一个引用到该模块的 chunks 数组。
+					},
+					priority: 10, // 优先级，一个 chunk 很可能满足多个缓存组，会被抽取到优先级高的缓存组中
+					minChunks: 2, // 最少被几个 chunk 引用
+					reuseExistingChunk: true, // 如果该 chunk 中引用了已经被抽取的 chunk，直接引用该 chunk，不会重复打包代码
+					enforce: true, // 如果 cacheGroup 中没有设置 minSize ，则据此判断是否使用上层的 minSize ，true：则使用0，false：使用上层 minSize
+				},
+			},
+		},
+	},
 	plugins: plugins,
 });
 
